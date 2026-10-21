@@ -12,10 +12,12 @@
 
   const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_KEY);
   const PAGE = 50;
-  const IDLE_MS = 20 * 60 * 1000;
+  // Oturum en fazla bu kadar açık kalır; süre dolunca şifre + doğrulama kodu yeniden istenir.
+  const MAX_SESSION_MS = 7 * 24 * 60 * 60 * 1000; // 7 gün
+  const LOGIN_KEY = 'sms_login_at';
   const fmt = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'medium' });
 
-  let channel = null, pollTimer = null, idleTimer = null;
+  let channel = null, pollTimer = null, ageTimer = null, expiring = false;
 
   // ---------- küçük yardımcılar (innerHTML kullanılmaz, XSS'e kapalı) ----------
   function el(tag, props = {}, ...kids) {
@@ -35,22 +37,34 @@
   function stopLive() {
     if (channel) { sb.removeChannel(channel); channel = null; }
     clearInterval(pollTimer); pollTimer = null;
-    clearTimeout(idleTimer); idleTimer = null;
+    clearInterval(ageTimer); ageTimer = null;
   }
 
-  function armIdle() {
-    clearTimeout(idleTimer);
-    idleTimer = setTimeout(async () => {
-      stopLive();
-      await sb.auth.signOut();
-      renderLogin('Hareketsizlik nedeniyle oturum kapatıldı.');
-    }, IDLE_MS);
+  function getLoginAt() {
+    try { return Number(localStorage.getItem(LOGIN_KEY)) || 0; } catch { return 0; }
   }
-  ['click', 'keydown', 'touchstart', 'scroll'].forEach(ev =>
-    addEventListener(ev, () => { if (idleTimer) armIdle(); }, { passive: true }));
+  function setLoginAt() {
+    try { localStorage.setItem(LOGIN_KEY, String(Date.now())); } catch { /* yoksay */ }
+  }
+  function clearLoginAt() {
+    try { localStorage.removeItem(LOGIN_KEY); } catch { /* yoksay */ }
+  }
+  function sessionExpired() {
+    const t = getLoginAt();
+    return t > 0 && Date.now() - t > MAX_SESSION_MS;
+  }
+  async function expireSession() {
+    stopLive();
+    clearLoginAt();
+    expiring = true;
+    await sb.auth.signOut();
+    expiring = false;
+    renderLogin('Oturum süresi doldu (7 gün). Lütfen yeniden giriş yapın.');
+  }
 
   async function logout() {
     stopLive();
+    clearLoginAt();
     await sb.auth.signOut();
     renderLogin();
   }
@@ -68,6 +82,7 @@
         const { error } = await sb.auth.signInWithPassword({ email: email.value.trim(), password: pass.value });
         btn.disabled = false;
         if (error) { err.textContent = 'E-posta veya şifre hatalı.'; return; }
+        clearLoginAt(); // yeni giriş: 7 günlük süre sıfırdan başlasın
         route();
       }
     }, email, pass, btn, err);
@@ -253,7 +268,7 @@
     }
 
     load(true);
-    armIdle();
+    ageTimer = setInterval(() => { if (sessionExpired()) expireSession(); }, 60000);
 
     channel = sb.channel('sms-live')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'sms_messages' }, () => load(true, true))
@@ -274,7 +289,12 @@
     const { data: aal, error } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
     if (error) { renderLogin('Oturum doğrulanamadı: ' + error.message); return; }
 
-    if (aal.currentLevel === 'aal2') { renderApp(session.user.email || ''); return; }
+    if (aal.currentLevel === 'aal2') {
+      if (sessionExpired()) { await expireSession(); return; }
+      if (!getLoginAt()) setLoginAt();
+      renderApp(session.user.email || '');
+      return;
+    }
 
     if (aal.nextLevel === 'aal2') {
       const { data: f } = await sb.auth.mfa.listFactors();
@@ -285,7 +305,7 @@
   }
 
   sb.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_OUT') { stopLive(); renderLogin(); }
+    if (event === 'SIGNED_OUT' && !expiring) { stopLive(); clearLoginAt(); renderLogin(); }
   });
 
   route();
