@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Ofis SMS</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1b1f24; --muted: #6b7280;
+    --line: #e3e6ea; --accent: #1d4ed8; --accent-text: #ffffff;
+    --code: #fff0a8; --err: #b42318; --ok: #15803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --card: #171a20; --text: #e8eaed; --muted: #9aa3af;
+      --line: #272b33; --accent: #6ea0ff; --accent-text: #0b1220;
+      --code: #5a4b0e; --err: #ff8a7a; --ok: #5fd08a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 820px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.25rem; margin: 0 0 8px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px; margin: 24px auto; max-width: 420px;
+  }
+  form { display: grid; gap: 10px; margin-top: 12px; }
+  input {
+    width: 100%; padding: 10px 12px; font: inherit; color: inherit;
+    background: transparent; border: 1px solid var(--line); border-radius: 8px;
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    font: inherit; padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer;
+    background: var(--accent); color: var(--accent-text);
+  }
+  button:disabled { opacity: .6; cursor: default; }
+  button.secondary, button.link {
+    background: transparent; color: var(--accent); border: 1px solid var(--line);
+  }
+  button.link { border: 0; padding: 4px 6px; }
+  .muted { color: var(--muted); font-size: .9rem; }
+  .err { color: var(--err); min-height: 1.2em; margin: 0; }
+  .ok { color: var(--ok); }
+  .qr { display: block; margin: 12px auto; width: 200px; height: 200px; background: #fff; border-radius: 8px; }
+  .secret { word-break: break-all; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85rem; }
+
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .bar .who { display: flex; align-items: center; gap: 8px; }
+  .live { width: 10px; height: 10px; border-radius: 50%; background: #9ca3af; display: inline-block; }
+  .live.on { background: #22c55e; }
+  .filters { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 12px; }
+  @media (min-width: 640px) { .filters { grid-template-columns: 2fr 1fr 1fr; } }
+  .filters label { display: grid; gap: 2px; font-size: .8rem; color: var(--muted); }
+
+  .list { display: grid; gap: 10px; }
+  .msg { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .msg .head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .msg .body { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .msg mark { background: var(--code); color: inherit; padding: 0 3px; border-radius: 4px; font-weight: 600; }
+  .msg .copy { margin-top: 8px; padding: 6px 10px; font-size: .9rem; }
+  .empty { text-align: center; color: var(--muted); padding: 32px 0; }
+  .more { text-align: center; margin: 14px 0; }
+</style>
+</head>
+<body>
+<main id="app">Yükleniyor…</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
