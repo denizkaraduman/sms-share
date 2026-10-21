@@ -35,6 +35,7 @@
   const card = (title, ...kids) => el('section', { class: 'card' }, el('h1', { text: title }), ...kids);
 
   function stopLive() {
+    document.querySelectorAll('.modal-back').forEach((n) => n.remove());
     if (channel) { sb.removeChannel(channel); channel = null; }
     clearInterval(pollTimer); pollTimer = null;
     clearInterval(ageTimer); ageTimer = null;
@@ -178,12 +179,16 @@
     const from = el('input', { type: 'date', value: today, onchange: (e) => { state.from = e.target.value; load(true); } });
     const to = el('input', { type: 'date', value: today, onchange: (e) => { state.to = e.target.value; load(true); } });
     const phone = el('span', { class: 'phone' });
+    const gear = el('button', {
+      class: 'secondary icon', title: 'Kullanıcı yönetimi', 'aria-label': 'Kullanıcı yönetimi',
+      text: '⚙', hidden: true, onclick: () => openAdmin(userEmail)
+    });
 
     show(
       el('div', { class: 'bar' },
         el('div', { class: 'who' }, el('h1', { text: 'Ofis SMS' }), live, count, phone),
         el('div', {}, el('span', { class: 'muted', text: userEmail + ' ' }),
-          el('button', { class: 'secondary', text: 'Çıkış', onclick: logout }))),
+          gear, ' ', el('button', { class: 'secondary', text: 'Çıkış', onclick: logout }))),
       el('div', { class: 'filters' },
         el('label', {}, 'Arama', search),
         el('label', {}, 'Başlangıç', from),
@@ -290,6 +295,8 @@
 
     load(true);
     loadPhone();
+    // Yönetici değilse (ya da sunucu fonksiyonu kurulu değilse) simge gizli kalır
+    callAdmin({ action: 'me' }).then((r) => { if (r.data && r.data.admin) gear.hidden = false; });
     ageTimer = setInterval(() => { if (sessionExpired()) expireSession(); }, 60000);
 
     channel = sb.channel('sms-live')
@@ -300,6 +307,103 @@
         live.title = on ? 'Canlı bağlantı açık' : 'Canlı bağlantı kapalı';
       });
     pollTimer = setInterval(() => { load(true, true); loadPhone(); }, 60000); // yedek: canlı bağlantı koparsa
+  }
+
+  // ---------- kullanıcı yönetimi (yalnızca yönetici) ----------
+  async function callAdmin(body) {
+    const { data, error } = await sb.functions.invoke('kullanici-yonet', { body });
+    if (error) {
+      let msg = error.message;
+      try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch { /* yoksay */ }
+      return { error: msg };
+    }
+    if (data && data.error) return { error: data.error };
+    return { data };
+  }
+
+  function genPassword() {
+    const A = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    const r = new Uint32Array(16);
+    crypto.getRandomValues(r);
+    return Array.from(r, (n) => A[n % A.length]).join('');
+  }
+
+  function openAdmin(selfEmail) {
+    const back = el('div', { class: 'modal-back' });
+    const close = () => { back.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    back.addEventListener('click', (e) => { if (e.target === back) close(); });
+
+    const list = el('div', {}, el('p', { class: 'muted', text: 'Yükleniyor…' }));
+    const msg = el('p', { class: 'err' });
+    const result = el('div');
+    const email = el('input', { type: 'email', required: true, placeholder: 'E-posta', autocomplete: 'off' });
+    const pass = el('input', { type: 'text', required: true, minlength: '12', placeholder: 'Geçici şifre (en az 12 karakter)', autocomplete: 'off' });
+    const gen = el('button', { type: 'button', class: 'secondary', text: 'Şifre üret', onclick: () => { pass.value = genPassword(); } });
+    const add = el('button', { type: 'submit', text: 'Kullanıcı ekle' });
+
+    async function refresh() {
+      const r = await callAdmin({ action: 'list' });
+      if (r.error) { list.replaceChildren(el('p', { class: 'err', text: 'Liste alınamadı: ' + r.error })); return; }
+      const users = r.data.users || [];
+      list.replaceChildren(...users.map((u) => {
+        const isSelf = (u.email || '').toLowerCase() === (selfEmail || '').toLowerCase();
+        const last = u.last_sign_in_at ? 'son giriş ' + fmt.format(new Date(u.last_sign_in_at)) : 'henüz giriş yapmadı';
+        return el('div', { class: 'urow' },
+          el('div', {},
+            el('div', { class: 'mail', text: u.email + (isSelf ? ' (siz)' : '') }),
+            el('div', { class: 'muted', text: last })),
+          el('div', {},
+            el('span', { class: 'pill ' + (u.mfa ? 'ok' : 'wait'), text: u.mfa ? 'Authenticator kurulu' : 'Authenticator bekliyor' }),
+            isSelf ? null : ' ',
+            isSelf ? null : el('button', {
+              class: 'secondary danger', text: 'Sil',
+              onclick: async (e) => {
+                if (!confirm(u.email + ' kullanıcısı silinsin mi? Bu işlem geri alınamaz.')) return;
+                e.currentTarget.disabled = true;
+                const d = await callAdmin({ action: 'delete', id: u.id });
+                if (d.error) { msg.textContent = d.error; e.currentTarget.disabled = false; return; }
+                msg.textContent = '';
+                refresh();
+              }
+            })));
+      }));
+    }
+
+    const form = el('form', {
+      onsubmit: async (e) => {
+        e.preventDefault();
+        add.disabled = true; msg.textContent = ''; result.replaceChildren();
+        const em = email.value.trim(), pw = pass.value;
+        const r = await callAdmin({ action: 'create', email: em, password: pw });
+        add.disabled = false;
+        if (r.error) { msg.textContent = r.error; return; }
+        const info = 'Ofis SMS giriş bilgileri\nAdres: ' + location.origin + '\nE-posta: ' + em + '\nGeçici şifre: ' + pw;
+        result.replaceChildren(el('div', { class: 'created' },
+          el('strong', { text: 'Kullanıcı oluşturuldu.' }),
+          el('p', { class: 'muted', text: 'Şifre bir daha gösterilmez, şimdi kopyalayın. Kullanıcı ilk girişte Authenticator kuracak; bunu hemen birlikte yapın.' }),
+          el('pre', { text: info }),
+          el('button', {
+            type: 'button', class: 'secondary', text: 'Bilgileri kopyala',
+            onclick: async (ev) => {
+              const b = ev.currentTarget;
+              try { await navigator.clipboard.writeText(info); b.textContent = 'Kopyalandı ✓'; }
+              catch { b.textContent = 'Kopyalanamadı, elle seçin'; }
+            }
+          })));
+        email.value = ''; pass.value = '';
+        refresh();
+      }
+    }, email, el('div', { class: 'row' }, pass, gen), add);
+
+    back.append(el('div', { class: 'modal', role: 'dialog', 'aria-label': 'Kullanıcı yönetimi' },
+      el('div', { class: 'head' }, el('h2', { text: 'Kullanıcı yönetimi' }),
+        el('button', { class: 'secondary', text: 'Kapat', onclick: close })),
+      el('h3', { text: 'Kullanıcılar' }), list,
+      el('h3', { text: 'Yeni kullanıcı ekle' }), form, msg, result));
+    document.body.append(back);
+    refresh();
   }
 
   // ---------- yönlendirme ----------

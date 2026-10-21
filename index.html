@@ -57,6 +57,26 @@
   .live { width: 10px; height: 10px; border-radius: 50%; background: #9ca3af; display: inline-block; }
   .live.on { background: #22c55e; }
   .phone { font-size: .9rem; }
+  button.icon { padding: 8px 12px; font-size: 1.1rem; line-height: 1; }
+  .modal-back {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 10;
+    display: flex; align-items: flex-start; justify-content: center; padding: 16px; overflow-y: auto;
+  }
+  .modal { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; width: 100%; max-width: 600px; margin: 24px 0; }
+  .modal h2 { font-size: 1.1rem; margin: 0 0 4px; }
+  .modal h3 { font-size: 1rem; margin: 20px 0 8px; }
+  .modal .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .urow { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .urow:first-child { border-top: 0; }
+  .urow .mail { overflow-wrap: anywhere; }
+  .row { display: flex; gap: 8px; }
+  .row input { flex: 1; min-width: 0; }
+  .pill { font-size: .8rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+  .pill.ok { color: var(--ok); }
+  .pill.wait { color: var(--err); }
+  .created { border: 1px solid var(--ok); border-radius: 8px; padding: 12px; margin-top: 12px; }
+  .created pre { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9rem; }
+  button.danger { color: var(--err); }
   .phone.on { color: var(--ok); }
   .phone.off { color: var(--err); font-weight: 600; }
   .filters { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 12px; }
