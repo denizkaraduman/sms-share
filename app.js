@@ -278,7 +278,7 @@
       const txt = data.map((d) => {
         if (!d.last_seen) { allOn = false; return d.id + ': hiç bağlanmadı'; }
         const min = Math.max(0, Math.round((now - new Date(d.last_seen).getTime()) / 60000));
-        if (min <= 15) return d.id + ': çevrimiçi';
+        if (min <= 20) return d.id + ': çevrimiçi';
         allOn = false;
         const ago = min < 60 ? min + ' dk' : min < 1440 ? Math.floor(min / 60) + ' sa' : Math.floor(min / 1440) + ' gün';
         return d.id + ': ' + ago + ' önce görüldü';
