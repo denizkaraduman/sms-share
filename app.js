@@ -31,6 +31,18 @@
     for (const kid of kids.flat()) if (kid != null) n.append(kid);
     return n;
   }
+  // Basit çizgi ikonlar (Feather, MIT). Sabit metinlerden DOM düğümü üretilir, kullanıcı verisi girmez.
+  const ICONS = {
+    user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>'
+  };
+  function icon(name) {
+    const svg = new DOMParser().parseFromString(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">' + ICONS[name] + '</svg>',
+      'image/svg+xml').documentElement;
+    return document.importNode(svg, true);
+  }
   const show = (...nodes) => root.replaceChildren(...nodes);
   const card = (title, ...kids) => el('section', { class: 'card' }, el('h1', { text: title }), ...kids);
 
@@ -179,16 +191,25 @@
     const from = el('input', { type: 'date', value: today, onchange: (e) => { state.from = e.target.value; load(true); } });
     const to = el('input', { type: 'date', value: today, onchange: (e) => { state.to = e.target.value; load(true); } });
     const phone = el('span', { class: 'phone' });
+    let isAdmin = false;
     const gear = el('button', {
       class: 'secondary icon', title: 'Kullanıcı yönetimi', 'aria-label': 'Kullanıcı yönetimi',
-      text: '⚙', hidden: true, onclick: () => openAdmin(userEmail)
-    });
+      hidden: true, onclick: () => openAdmin(userEmail)
+    }, icon('settings'));
+    const account = el('button', {
+      class: 'secondary icon', title: 'Hesabım', 'aria-label': 'Hesabım',
+      onclick: () => openAccount(userEmail, isAdmin)
+    }, icon('user'));
+    const logoutBtn = el('button', {
+      class: 'secondary icon', title: 'Çıkış yap', 'aria-label': 'Çıkış yap', onclick: logout
+    }, icon('logout'));
 
     show(
       el('div', { class: 'bar' },
-        el('div', { class: 'who' }, el('h1', { text: 'Ofis SMS' }), live, count, phone),
-        el('div', {}, el('span', { class: 'muted', text: userEmail + ' ' }),
-          gear, ' ', el('button', { class: 'secondary', text: 'Çıkış', onclick: logout }))),
+        el('div', { class: 'who-col' },
+          el('div', { class: 'who' }, el('h1', { text: 'Ofis SMS' }), live, count),
+          phone),
+        el('div', { class: 'tools' }, account, gear, logoutBtn)),
       el('div', { class: 'filters' },
         el('label', {}, 'Arama', search),
         el('label', {}, 'Başlangıç', from),
@@ -297,7 +318,7 @@
     load(true);
     loadPhone();
     // Yönetici değilse (ya da sunucu fonksiyonu kurulu değilse) simge gizli kalır
-    callAdmin({ action: 'me' }).then((r) => { if (r.data && r.data.admin) gear.hidden = false; });
+    callAdmin({ action: 'me' }).then((r) => { if (r.data && r.data.admin) { isAdmin = true; gear.hidden = false; } });
     ageTimer = setInterval(() => { if (sessionExpired()) expireSession(); }, 60000);
 
     channel = sb.channel('sms-live')
@@ -327,6 +348,36 @@
     const r = new Uint32Array(16);
     crypto.getRandomValues(r);
     return Array.from(r, (n) => A[n % A.length]).join('');
+  }
+
+  async function openAccount(selfEmail, admin) {
+    const back = el('div', { class: 'modal-back' });
+    const close = () => { back.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    back.addEventListener('click', (e) => { if (e.target === back) close(); });
+
+    const body = el('div', {}, el('p', { class: 'muted', text: 'Yükleniyor…' }));
+    back.append(el('div', { class: 'modal', role: 'dialog', 'aria-label': 'Hesabım' },
+      el('div', { class: 'head' }, el('h2', { text: 'Hesabım' }),
+        el('button', { class: 'secondary', text: 'Kapat', onclick: close })),
+      body));
+    document.body.append(back);
+
+    const { data } = await sb.auth.getUser();
+    const u = (data && data.user) || {};
+    const when = (v) => (v ? fmt.format(new Date(v)) : '-');
+    const start = getLoginAt();
+    const row = (k, v) => el('div', { class: 'kv' }, el('span', { class: 'k', text: k }), el('span', { class: 'v', text: v }));
+    body.replaceChildren(
+      row('E-posta', u.email || selfEmail),
+      row('Yetki', admin ? 'Yönetici' : 'Kullanıcı'),
+      row('İki aşamalı doğrulama', 'Etkin (bu oturumda doğrulandı)'),
+      row('Son giriş', when(u.last_sign_in_at)),
+      row('Hesap oluşturulma', when(u.created_at)),
+      row('Oturum başlangıcı', start ? when(start) : '-'),
+      row('Oturum bitişi', start ? when(start + MAX_SESSION_MS) : '-'),
+      el('p', { class: 'muted', text: 'Oturum süresi dolunca şifre ve doğrulama kodu yeniden istenir.' }));
   }
 
   function openAdmin(selfEmail) {

@@ -52,8 +52,17 @@
   .qr { display: block; margin: 12px auto; width: 200px; height: 200px; background: #fff; border-radius: 8px; }
   .secret { word-break: break-all; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85rem; }
 
-  .bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-  .bar .who { display: flex; align-items: center; gap: 8px; }
+  .bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .bar .who-col { min-width: 0; }
+  .bar .who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .bar .who h1 { margin: 0; }
+  .bar .phone { display: block; margin-top: 4px; }
+  .tools { display: flex; gap: 6px; flex-shrink: 0; }
+  button.icon svg { width: 20px; height: 20px; display: block; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .kv { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .kv:first-of-type { border-top: 0; }
+  .kv .k { color: var(--muted); }
+  .kv .v { text-align: right; overflow-wrap: anywhere; }
   .live { width: 10px; height: 10px; border-radius: 50%; background: #9ca3af; display: inline-block; }
   .live.on { background: #22c55e; }
   .phone { font-size: .9rem; }
