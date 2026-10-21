@@ -283,10 +283,11 @@
       const txt = data.map((d) => {
         if (!d.last_seen) { allOn = false; return d.id + ': hiç bağlanmadı'; }
         const min = Math.max(0, Math.round((now - new Date(d.last_seen).getTime()) / 60000));
-        if (min <= 20) return d.id + ': çevrimiçi';
+        const stamp = ' (son sinyal ' + fmt.format(new Date(d.last_seen)) + ')';
+        if (min <= 20) return d.id + ': çevrimiçi' + stamp;
         allOn = false;
         const ago = min < 60 ? min + ' dk' : min < 1440 ? Math.floor(min / 60) + ' sa' : Math.floor(min / 1440) + ' gün';
-        return d.id + ': ' + ago + ' önce görüldü';
+        return d.id + ': ' + ago + ' önce görüldü' + stamp;
       }).join(' · ');
       phone.className = 'phone ' + (allOn ? 'on' : 'off');
       phone.textContent = 'Telefon ' + txt;
