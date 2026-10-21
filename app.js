@@ -160,7 +160,8 @@
 
   // ---------- ana ekran ----------
   function renderApp(userEmail) {
-    const state = { q: '', from: '', to: '', shown: 0, total: 0, loading: false, again: false };
+    const today = new Date().toLocaleDateString('sv-SE'); // yerel saatle YYYY-AA-GG
+    const state = { q: '', from: today, to: today, shown: 0, total: 0, loading: false, again: false };
 
     const list = el('div', { class: 'list' });
     const live = el('span', { class: 'live', title: 'Canlı bağlantı kapalı' });
@@ -174,12 +175,13 @@
       type: 'search', placeholder: 'Ara: gönderen veya mesaj metni',
       oninput: (e) => { clearTimeout(timer); timer = setTimeout(() => { state.q = e.target.value; load(true); }, 300); }
     });
-    const from = el('input', { type: 'date', onchange: (e) => { state.from = e.target.value; load(true); } });
-    const to = el('input', { type: 'date', onchange: (e) => { state.to = e.target.value; load(true); } });
+    const from = el('input', { type: 'date', value: today, onchange: (e) => { state.from = e.target.value; load(true); } });
+    const to = el('input', { type: 'date', value: today, onchange: (e) => { state.to = e.target.value; load(true); } });
+    const phone = el('span', { class: 'phone' });
 
     show(
       el('div', { class: 'bar' },
-        el('div', { class: 'who' }, el('h1', { text: 'Ofis SMS' }), live, count),
+        el('div', { class: 'who' }, el('h1', { text: 'Ofis SMS' }), live, count, phone),
         el('div', {}, el('span', { class: 'muted', text: userEmail + ' ' }),
           el('button', { class: 'secondary', text: 'Çıkış', onclick: logout }))),
       el('div', { class: 'filters' },
@@ -259,7 +261,7 @@
 
       if (state.shown === 0) {
         const filtered = state.q || state.from || state.to;
-        list.replaceChildren(el('p', { class: 'empty', text: filtered ? 'Sonuç bulunamadı.' : 'Henüz SMS yok.' }));
+        list.replaceChildren(el('p', { class: 'empty', text: filtered ? 'Bu filtreyle SMS yok. Tarihleri silerek tüm mesajları görebilirsiniz.' : 'Henüz SMS yok.' }));
       }
       count.textContent = state.total + ' mesaj';
       more.hidden = state.shown >= state.total;
@@ -267,7 +269,27 @@
       if (state.again) { state.again = false; load(true, true); }
     }
 
+    // Telefonun son görülme zamanı (device_status SQL'i kurulmadıysa sessizce gizlenir)
+    async function loadPhone() {
+      const { data, error } = await sb.rpc('device_status');
+      if (error || !data || !data.length) { phone.textContent = ''; phone.className = 'phone'; return; }
+      const now = Date.now();
+      let allOn = true;
+      const txt = data.map((d) => {
+        if (!d.last_seen) { allOn = false; return d.id + ': hiç bağlanmadı'; }
+        const min = Math.max(0, Math.round((now - new Date(d.last_seen).getTime()) / 60000));
+        if (min <= 15) return d.id + ': çevrimiçi';
+        allOn = false;
+        const ago = min < 60 ? min + ' dk' : min < 1440 ? Math.floor(min / 60) + ' sa' : Math.floor(min / 1440) + ' gün';
+        return d.id + ': ' + ago + ' önce görüldü';
+      }).join(' · ');
+      phone.className = 'phone ' + (allOn ? 'on' : 'off');
+      phone.textContent = 'Telefon ' + txt;
+      phone.title = allOn ? '' : 'Telefon kapalı, internetsiz ya da uygulama durmuş olabilir; SMS’ler gecikebilir.';
+    }
+
     load(true);
+    loadPhone();
     ageTimer = setInterval(() => { if (sessionExpired()) expireSession(); }, 60000);
 
     channel = sb.channel('sms-live')
@@ -277,7 +299,7 @@
         live.className = 'live' + (on ? ' on' : '');
         live.title = on ? 'Canlı bağlantı açık' : 'Canlı bağlantı kapalı';
       });
-    pollTimer = setInterval(() => load(true, true), 60000); // yedek: canlı bağlantı koparsa
+    pollTimer = setInterval(() => { load(true, true); loadPhone(); }, 60000); // yedek: canlı bağlantı koparsa
   }
 
   // ---------- yönlendirme ----------
