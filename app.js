@@ -314,10 +314,12 @@
         if (!d.last_seen) { allOn = false; return d.id + ': hiç bağlanmadı'; }
         const min = Math.max(0, Math.round((now - new Date(d.last_seen).getTime()) / 60000));
         const stamp = ' (son sinyal ' + fmt.format(new Date(d.last_seen)) + ')';
-        if (min <= 20) return d.id + ': çevrimiçi' + stamp;
+        const bat = (d.battery_pct === null || d.battery_pct === undefined) ? ''
+          : ' · pil %' + d.battery_pct + (d.charging ? ' (şarjda)' : '');
+        if (min <= 20) return d.id + ': çevrimiçi' + stamp + bat;
         allOn = false;
         const ago = min < 60 ? min + ' dk' : min < 1440 ? Math.floor(min / 60) + ' sa' : Math.floor(min / 1440) + ' gün';
-        return d.id + ': ' + ago + ' önce görüldü' + stamp;
+        return d.id + ': ' + ago + ' önce görüldü' + stamp + bat;
       }).join(' · ');
       phone.className = 'phone ' + (allOn ? 'on' : 'off');
       phone.textContent = 'Telefon ' + txt;
