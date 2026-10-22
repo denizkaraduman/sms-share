@@ -446,7 +446,23 @@
             el('div', { class: 'mail', text: u.email + (isSelf ? ' (siz)' : '') }),
             el('div', { class: 'muted', text: last })),
           el('div', {},
-            el('span', { class: 'pill ' + (u.mfa ? 'ok' : 'wait'), text: u.mfa ? 'Authenticator kurulu' : 'Authenticator bekliyor' }),
+            el('span', {
+              class: 'pill ' + (u.muaf ? 'wait' : (u.mfa ? 'ok' : 'wait')),
+              text: u.muaf ? 'Authenticator kapalı' : (u.mfa ? 'Authenticator kurulu' : 'Authenticator bekliyor')
+            }),
+            isSelf ? null : ' ',
+            isSelf ? null : el('button', {
+              class: 'secondary', text: u.muaf ? 'Authenticator aç' : 'Authenticator kapat',
+              onclick: async (e) => {
+                const kapat = !u.muaf;
+                if (kapat && !confirm(u.email + ' için Authenticator kodu istenmesin mi? Bu kullanıcı yalnızca e-posta ve şifreyle girecek.')) return;
+                e.currentTarget.disabled = true;
+                const d = await callAdmin({ action: 'mfa_muaf', id: u.id, value: kapat });
+                if (d.error) { msg.textContent = d.error; e.currentTarget.disabled = false; return; }
+                msg.textContent = '';
+                refresh();
+              }
+            }),
             isSelf ? null : ' ',
             isSelf ? null : el('button', {
               class: 'secondary danger', text: 'Sil',
@@ -507,6 +523,15 @@
     if (error) { renderLogin('Oturum doğrulanamadı: ' + error.message); return; }
 
     if (aal.currentLevel === 'aal2') {
+      if (sessionExpired()) { await expireSession(); return; }
+      if (!getLoginAt()) setLoginAt();
+      renderApp(session.user.email || '');
+      return;
+    }
+
+    // Yönetici bu kullanıcı için Authenticator'ı kapattıysa ikinci adımı atla
+    const { data: muaf } = await sb.rpc('mfa_muaf_mi');
+    if (muaf === true) {
       if (sessionExpired()) { await expireSession(); return; }
       if (!getLoginAt()) setLoginAt();
       renderApp(session.user.email || '');
