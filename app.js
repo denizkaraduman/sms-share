@@ -191,6 +191,13 @@
     const from = el('input', { type: 'date', value: today, onchange: (e) => { state.from = e.target.value; load(true); } });
     const to = el('input', { type: 'date', value: today, onchange: (e) => { state.to = e.target.value; load(true); } });
     const phone = el('span', { class: 'phone' });
+    let devices = [];
+    let scanTimer = null;
+    const scanMsg = el('span', { class: 'muted' });
+    const scanBtn = el('button', {
+      class: 'secondary small', hidden: true, title: 'Telefondaki son SMS’leri sorgula', onclick: () => startScan()
+    }, 'Telefonu tara');
+    const scanRow = el('div', { class: 'scanrow' }, scanBtn, scanMsg);
     let isAdmin = false;
     const gear = el('button', {
       class: 'secondary icon', title: 'Kullanıcı yönetimi', 'aria-label': 'Kullanıcı yönetimi',
@@ -208,7 +215,7 @@
       el('div', { class: 'bar' },
         el('div', { class: 'who-col' },
           el('div', { class: 'who' }, el('h1', { text: 'Ofis SMS' }), live, count),
-          phone),
+          phone, scanRow),
         el('div', { class: 'tools' }, account, gear, logoutBtn)),
       el('div', { class: 'filters' },
         el('label', {}, 'Arama', search),
@@ -298,7 +305,9 @@
     // Telefonun son görülme zamanı (device_status SQL'i kurulmadıysa sessizce gizlenir)
     async function loadPhone() {
       const { data, error } = await sb.rpc('device_status');
-      if (error || !data || !data.length) { phone.textContent = ''; phone.className = 'phone'; return; }
+      if (error || !data || !data.length) { devices = []; scanBtn.hidden = true; phone.textContent = ''; phone.className = 'phone'; return; }
+      devices = data;
+      scanBtn.hidden = !('scan_requested_at' in data[0]); // 03-tarama.sql kurulmadıysa gizli
       const now = Date.now();
       let allOn = true;
       const txt = data.map((d) => {
@@ -313,6 +322,36 @@
       phone.className = 'phone ' + (allOn ? 'on' : 'off');
       phone.textContent = 'Telefon ' + txt;
       phone.title = allOn ? '' : 'Telefon kapalı, internetsiz ya da uygulama durmuş olabilir; SMS’ler gecikebilir.';
+    }
+
+    function scanPending() {
+      return devices.filter((d) => d.scan_requested_at && (!d.scan_done_at || new Date(d.scan_done_at) < new Date(d.scan_requested_at)));
+    }
+
+    async function startScan() {
+      scanBtn.disabled = true;
+      scanMsg.textContent = 'İstek gönderiliyor…';
+      for (const d of devices) {
+        const { error } = await sb.rpc('request_scan', { p_device_id: d.id });
+        if (error) { scanMsg.textContent = 'İstek gönderilemedi: ' + error.message; scanBtn.disabled = false; return; }
+      }
+      scanMsg.textContent = 'İstek gönderildi, telefonun yanıtı bekleniyor (en geç 1-2 dakika)…';
+      const t0 = Date.now();
+      clearInterval(scanTimer);
+      scanTimer = setInterval(async () => {
+        if (!document.body.contains(scanBtn)) { clearInterval(scanTimer); return; }
+        await loadPhone();
+        if (!scanPending().length) {
+          clearInterval(scanTimer);
+          scanBtn.disabled = false;
+          scanMsg.textContent = 'Tarama tamamlandı: ' + devices.map((d) => d.scan_note).filter(Boolean).join(' · ');
+          load(true, true);
+        } else if (Date.now() - t0 > 3 * 60 * 1000) {
+          clearInterval(scanTimer);
+          scanBtn.disabled = false;
+          scanMsg.textContent = 'Telefon yanıt vermedi (kapalı, internetsiz ya da uygulama durmuş olabilir). İstek bekliyor, telefon açılınca otomatik taranır.';
+        }
+      }, 5000);
     }
 
     load(true);
